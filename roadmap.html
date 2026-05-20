@@ -1,0 +1,2305 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 Прогрессор — AI-навигатор обучения</title>
+    <style>
+        :root {
+            --bg: #07080f;
+            --border: rgba(255,255,255,0.08);
+            --text: #dde0f0;
+            --muted: #6b7094;
+            --red: #f0455a;
+            --blue: #4361ee;
+            --cyan: #00d4d8;
+            --green: #22d17a;
+            --gold: #ffb822;
+            --purple: #7c3aed;
+            --card: rgba(18,20,42,0.97);
+            --chat-bubble: rgba(76,61,220,0.18);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI',system-ui,sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            user-select: none;
+        }
+
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* HEADER */
+        #header {
+            padding: 11px 18px;
+            background: rgba(7,8,15,.98);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 500;
+            flex-shrink: 0;
+        }
+
+            #header h1 {
+                font-size: 18px;
+                font-weight: 800;
+                letter-spacing: 1.5px;
+                background: linear-gradient(135deg,#7c3aed,#f0455a,#ffb822);
+                background-size: 200% 200%;
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                animation: hg 4s ease infinite;
+            }
+
+        @keyframes hg {
+            0%,100% {
+                background-position: 0% 50%
+            }
+
+            50% {
+                background-position: 100% 50%
+            }
+        }
+
+        #header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* CONTENT */
+        #content-area {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tab-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none !important;
+        }
+
+            .tab-panel.active {
+                display: block !important;
+            }
+
+        #tab-chat.active {
+            display: flex !important;
+            flex-direction: column;
+        }
+
+        #tab-leaderboard {
+            background: var(--bg);
+            overflow-y: auto;
+            padding: 36px 20px;
+        }
+
+            #tab-leaderboard.active {
+                display: flex !important;
+                flex-direction: column;
+                align-items: center;
+            }
+
+        /* MAP */
+        #map-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            cursor: grab;
+            overflow: hidden;
+        }
+
+            #map-container.dragging {
+                cursor: grabbing;
+            }
+
+        /* world-layer трансформируется целиком — ноды + линии вместе */
+        #world-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+        }
+
+        /* ЛИНИИ — живут внутри world-layer как div */
+        .conn-line {
+            position: absolute;
+            left: 0;
+            top: 0;
+            transform-origin: 0 0;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .conn-line-inner {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+            .conn-line-inner::after {
+                content: '';
+                position: absolute;
+                left: 0;
+                top: 50%;
+                width: 100%;
+                height: 2px;
+                margin-top: -1px;
+                background: rgba(67,97,238,.5);
+            }
+        /* SVG для линий (внутри world-layer) */
+        #lines-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 1;
+            overflow: visible;
+        }
+
+        /* NODES layer — поверх SVG */
+        #nodes-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* NODES */
+        .node {
+            position: absolute;
+            pointer-events: all;
+            cursor: pointer;
+            transition: filter .3s;
+            z-index: 3;
+        }
+
+            .node:hover {
+                z-index: 10;
+            }
+
+            .node.locked {
+                pointer-events: none;
+                opacity: .35;
+                filter: grayscale(.85);
+            }
+
+                .node.locked .node-checkbox {
+                    display: none;
+                }
+
+        .node-main .node-circle {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: linear-gradient(135deg,#f0455a,#b01030);
+            border: 3px solid #f0455a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 17px;
+            color: #fff;
+            box-shadow: 0 0 24px rgba(240,69,90,.4),0 4px 14px rgba(0,0,0,.5);
+            transition: all .3s;
+        }
+
+        .node-main:not(.locked):hover .node-circle {
+            transform: scale(1.15);
+            box-shadow: 0 0 44px rgba(240,69,90,.7);
+        }
+
+        .node-extra .node-circle {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg,#4361ee,#1e3ac0);
+            border: 2px solid #4361ee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #fff;
+            box-shadow: 0 0 14px rgba(67,97,238,.4),0 4px 10px rgba(0,0,0,.4);
+            transition: all .3s;
+        }
+
+        .node-extra:not(.locked):hover .node-circle {
+            transform: scale(1.15);
+            box-shadow: 0 0 30px rgba(67,97,238,.7);
+        }
+
+        .node.current-step .node-circle {
+            animation: pulseN 2s ease-in-out infinite;
+        }
+
+        @keyframes pulseN {
+            0%,100% {
+                box-shadow: 0 0 24px rgba(240,69,90,.4),0 4px 14px rgba(0,0,0,.5);
+            }
+
+            50% {
+                box-shadow: 0 0 50px rgba(34,209,122,.7),0 4px 14px rgba(0,0,0,.5);
+            }
+        }
+
+        .node-label {
+            position: absolute;
+            white-space: nowrap;
+            font-size: 11px;
+            color: #8892b0;
+            text-shadow: 0 0 8px rgba(0,0,0,.8);
+            pointer-events: none;
+            transition: color .25s;
+        }
+
+        .node:not(.locked):hover .node-label {
+            color: #fff;
+        }
+
+        .node-main .node-label {
+            left: 60px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .node-extra .node-label {
+            left: 44px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .node-checkbox {
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: transparent;
+            border: 2px solid var(--green);
+            cursor: pointer;
+            pointer-events: all;
+            z-index: 5;
+            transition: all .25s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            right: -6px;
+            bottom: -6px;
+        }
+
+            .node-checkbox:hover {
+                background: rgba(34,209,122,.25);
+            }
+
+            .node-checkbox.checked {
+                background: var(--green);
+                border-color: var(--green);
+                cursor: default;
+            }
+
+        .checkmark {
+            color: #fff;
+            font-size: 11px;
+            font-weight: bold;
+            opacity: 0;
+            transform: scale(0);
+            transition: all .25s;
+        }
+
+        .node-checkbox.checked .checkmark {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .node.completed-node {
+            opacity: .55;
+        }
+
+            .node.completed-node .node-circle {
+                border-color: var(--green) !important;
+            }
+
+        /* TOOLTIP */
+        .node-tooltip {
+            position: fixed;
+            background: var(--card);
+            border: 1px solid rgba(255,255,255,.13);
+            border-radius: 16px;
+            padding: 14px 16px;
+            z-index: 900;
+            pointer-events: auto;
+            opacity: 0;
+            transform: translateY(6px);
+            transition: opacity .2s,transform .2s;
+            max-width: 280px;
+            font-size: 12px;
+            color: #ccd;
+            box-shadow: 0 18px 44px rgba(0,0,0,.75);
+            backdrop-filter: blur(16px);
+        }
+
+            .node-tooltip.visible {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+        .tt-title {
+            font-weight: 800;
+            font-size: 13px;
+            color: #fff;
+            margin-bottom: 5px;
+            line-height: 1.3;
+        }
+
+        .tt-why {
+            color: #8899bb;
+            font-size: 11px;
+            line-height: 1.5;
+            margin-bottom: 8px;
+            font-style: italic;
+        }
+
+        .tt-skills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            margin-bottom: 8px;
+        }
+
+        .tt-skill {
+            padding: 2px 7px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 600;
+            background: rgba(124,58,237,.22);
+            color: #a78bfa;
+            border: 1px solid rgba(124,58,237,.28);
+        }
+
+        .tt-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 12px;
+            border-radius: 7px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all .2s;
+            border: none;
+            text-decoration: none;
+        }
+
+        .tt-open {
+            background: var(--cyan);
+            color: #000;
+        }
+
+            .tt-open:hover {
+                background: #7bfafc;
+            }
+
+        .tt-test {
+            background: rgba(240,69,90,.18);
+            color: var(--red);
+            border: 1px solid rgba(240,69,90,.3);
+            margin-left: 6px;
+        }
+
+            .tt-test:hover {
+                background: rgba(240,69,90,.32);
+            }
+
+        /* CHAT */
+        .chat-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .chat-avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: linear-gradient(135deg,#7c3aed,#a78bfa);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 17px;
+            flex-shrink: 0;
+        }
+
+        .chat-header-info h3 {
+            font-size: 13px;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .chat-header-info span {
+            font-size: 10px;
+            color: var(--muted);
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+        }
+
+            .chat-messages::-webkit-scrollbar {
+                width: 3px;
+            }
+
+            .chat-messages::-webkit-scrollbar-thumb {
+                background: rgba(255,255,255,.07);
+            }
+
+        .chat-msg {
+            max-width: 84%;
+            padding: 9px 13px;
+            border-radius: 13px;
+            font-size: 12.5px;
+            line-height: 1.55;
+            animation: mi .25s ease;
+        }
+
+        @keyframes mi {
+            from {
+                opacity: 0;
+                transform: translateY(7px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+
+        .chat-msg.bot {
+            align-self: flex-start;
+            background: var(--chat-bubble);
+            border-bottom-left-radius: 3px;
+            color: #d0d8f0;
+        }
+
+        .chat-msg.user {
+            align-self: flex-end;
+            background: rgba(255,255,255,.07);
+            border-bottom-right-radius: 3px;
+            color: #fff;
+        }
+
+        .msg-time {
+            font-size: 9.5px;
+            color: #333a50;
+            margin-top: 3px;
+        }
+
+        .chat-input-area {
+            padding: 9px 14px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 7px;
+            flex-shrink: 0;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: rgba(255,255,255,.05);
+            border: 1px solid rgba(255,255,255,.11);
+            border-radius: 20px;
+            padding: 8px 14px;
+            color: #fff;
+            font-size: 12.5px;
+            outline: none;
+            transition: border .2s;
+            font-family: inherit;
+        }
+
+            .chat-input:focus {
+                border-color: rgba(124,58,237,.5);
+            }
+
+            .chat-input::placeholder {
+                color: var(--muted);
+            }
+
+        .send-btn {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: var(--purple);
+            border: none;
+            cursor: pointer;
+            color: #fff;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .2s;
+            flex-shrink: 0;
+        }
+
+            .send-btn:hover {
+                background: #9333ea;
+                transform: scale(1.07);
+            }
+
+            .send-btn:disabled {
+                opacity: .35;
+                cursor: default;
+                transform: none;
+            }
+
+        .learning-controls {
+            padding: 9px 14px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 7px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+
+        .lc-btn {
+            padding: 7px 13px;
+            border-radius: 18px;
+            font-size: 11.5px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid;
+            transition: all .18s;
+            font-family: inherit;
+        }
+
+        .lc-next {
+            background: rgba(34,209,122,.13);
+            color: var(--green);
+            border-color: rgba(34,209,122,.28);
+        }
+
+            .lc-next:hover {
+                background: rgba(34,209,122,.25);
+            }
+
+        .lc-test {
+            background: rgba(240,69,90,.13);
+            color: var(--red);
+            border-color: rgba(240,69,90,.28);
+        }
+
+            .lc-test:hover {
+                background: rgba(240,69,90,.25);
+            }
+
+        .lc-map {
+            background: rgba(67,97,238,.13);
+            color: #a0b4ff;
+            border-color: rgba(67,97,238,.28);
+        }
+
+            .lc-map:hover {
+                background: rgba(67,97,238,.25);
+            }
+
+        .lc-rebuild {
+            background: rgba(124,58,237,.13);
+            color: #c4b5fd;
+            border-color: rgba(124,58,237,.28);
+        }
+
+            .lc-rebuild:hover {
+                background: rgba(124,58,237,.25);
+            }
+
+        .test-panel {
+            padding: 12px 16px;
+            border-top: 2px solid rgba(240,69,90,.28);
+            background: rgba(240,69,90,.06);
+            flex-shrink: 0;
+        }
+
+        .test-q {
+            font-size: 12.5px;
+            color: #f0c4c8;
+            margin-bottom: 9px;
+            line-height: 1.5;
+            font-weight: 600;
+        }
+
+        .test-row {
+            display: flex;
+            gap: 7px;
+        }
+
+        .test-input {
+            flex: 1;
+            background: rgba(255,255,255,.06);
+            border: 1px solid rgba(240,69,90,.28);
+            border-radius: 18px;
+            padding: 7px 13px;
+            color: #fff;
+            font-size: 12px;
+            outline: none;
+            font-family: inherit;
+        }
+
+            .test-input:focus {
+                border-color: rgba(240,69,90,.6);
+            }
+
+        .test-ok {
+            padding: 7px 14px;
+            background: var(--red);
+            color: #fff;
+            border: none;
+            border-radius: 18px;
+            font-size: 11.5px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .test-skip {
+            padding: 7px 12px;
+            background: transparent;
+            color: var(--muted);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            font-size: 11.5px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+            .test-skip:hover {
+                color: #fff;
+            }
+
+        .choices-panel {
+            padding: 12px 16px;
+            border-top: 2px solid rgba(255,184,34,.25);
+            background: rgba(255,184,34,.04);
+            flex-shrink: 0;
+        }
+
+        .choices-title {
+            font-size: 11.5px;
+            color: var(--gold);
+            font-weight: 700;
+            margin-bottom: 7px;
+        }
+
+        .choices-list {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .choice-btn {
+            padding: 8px 13px;
+            background: rgba(255,255,255,.04);
+            border: 1px solid rgba(255,255,255,.1);
+            border-radius: 9px;
+            color: #d0d8f0;
+            font-size: 11.5px;
+            cursor: pointer;
+            text-align: left;
+            transition: all .18s;
+            font-family: inherit;
+        }
+
+            .choice-btn:hover {
+                background: rgba(255,184,34,.13);
+                border-color: rgba(255,184,34,.35);
+                color: #fff;
+            }
+
+        .choice-core {
+            border-left: 3px solid var(--red);
+        }
+
+        .choice-branch {
+            border-left: 3px solid var(--blue);
+        }
+
+        /* LEADERBOARD */
+        .lb-title {
+            font-size: 26px;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .lb-sub {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 24px;
+        }
+
+        .lb-table {
+            width: 100%;
+            max-width: 520px;
+            border-collapse: collapse;
+        }
+
+            .lb-table th {
+                text-align: left;
+                padding: 9px 13px;
+                font-size: 10.5px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                color: #444;
+                border-bottom: 1px solid var(--border);
+            }
+
+                .lb-table th:last-child {
+                    text-align: right;
+                }
+
+            .lb-table td {
+                padding: 12px 13px;
+                font-size: 15px;
+                border-bottom: 1px solid rgba(255,255,255,.03);
+            }
+
+                .lb-table td:last-child {
+                    text-align: right;
+                }
+
+        .lb-rank {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            font-weight: 800;
+            font-size: 13px;
+        }
+
+        .r1 {
+            background: #ffb822;
+            color: #000;
+        }
+
+        .r2 {
+            background: #a4b0be;
+            color: #000;
+        }
+
+        .r3 {
+            background: #cd6133;
+            color: #fff;
+        }
+
+        .r- {
+            background: rgba(255,255,255,.07);
+            color: #555;
+        }
+
+        .lb-nc {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+        }
+
+        .lb-av {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            background: rgba(124,58,237,.22);
+            flex-shrink: 0;
+        }
+
+        .lb-name {
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .lb-you {
+            font-size: 9.5px;
+            background: rgba(124,58,237,.22);
+            color: #a78bfa;
+            padding: 2px 6px;
+            border-radius: 9px;
+            margin-left: 5px;
+        }
+
+        .lb-score {
+            font-weight: 700;
+            color: var(--green);
+        }
+
+        .lb-myscore {
+            margin-top: 24px;
+            background: rgba(124,58,237,.16);
+            border: 1px solid rgba(124,58,237,.3);
+            border-radius: 16px;
+            padding: 18px 26px;
+            text-align: center;
+            min-width: 220px;
+        }
+
+            .lb-myscore .msl {
+                font-size: 11px;
+                color: #555;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+
+            .lb-myscore .msv {
+                font-size: 38px;
+                font-weight: 800;
+                color: var(--gold);
+            }
+
+            .lb-myscore .msr {
+                font-size: 12px;
+                color: #888;
+                margin-top: 2px;
+            }
+
+        /* PROGRESS */
+        .progress-badge {
+            position: fixed;
+            top: 50px;
+            right: 13px;
+            background: rgba(7,8,15,.93);
+            border: 1px solid rgba(255,255,255,.13);
+            border-radius: 14px;
+            padding: 9px 14px;
+            z-index: 50;
+            font-size: 11px;
+            font-weight: 700;
+            color: #fff;
+            backdrop-filter: blur(10px);
+            display: none;
+            min-width: 110px;
+            text-align: center;
+        }
+
+            .progress-badge.visible {
+                display: block;
+            }
+
+        .pb-pct {
+            font-size: 24px;
+            font-weight: 800;
+            line-height: 1;
+            transition: color .5s;
+        }
+
+        .pb-count {
+            font-size: 9.5px;
+            color: var(--muted);
+            margin-top: 1px;
+        }
+
+        .pb-bar-out {
+            width: 100%;
+            height: 4px;
+            background: rgba(255,255,255,.07);
+            border-radius: 2px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+
+        .pb-bar-in {
+            height: 100%;
+            border-radius: 2px;
+            transition: width .5s,background .5s;
+        }
+
+        /* NOTIF */
+        .notification {
+            position: fixed;
+            top: 26px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-130px);
+            background: linear-gradient(135deg,#22d17a,#7bfabc);
+            color: #000;
+            padding: 10px 24px;
+            border-radius: 40px;
+            font-weight: 800;
+            font-size: 15px;
+            z-index: 200;
+            pointer-events: none;
+            transition: transform .4s cubic-bezier(.175,.885,.32,1.275);
+            box-shadow: 0 8px 24px rgba(34,209,122,.4);
+        }
+
+            .notification.show {
+                transform: translateX(-50%) translateY(0);
+            }
+
+        /* CONFETTI */
+        .confetti-piece {
+            position: fixed;
+            top: -20px;
+            pointer-events: none;
+            z-index: 150;
+            animation: cfDrop 3s ease-in forwards;
+        }
+
+        @keyframes cfDrop {
+            0% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 1;
+            }
+
+            80% {
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(105vh) rotate(720deg) scale(.2);
+                opacity: 0;
+            }
+        }
+
+        /* LEGEND */
+        .legend {
+            position: fixed;
+            bottom: 84px;
+            left: 13px;
+            background: rgba(7,8,15,.93);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            padding: 9px 12px;
+            z-index: 50;
+            font-size: 9.5px;
+            display: none;
+            flex-direction: column;
+            gap: 4px;
+            backdrop-filter: blur(6px);
+        }
+
+            .legend.visible {
+                display: flex;
+            }
+
+        .leg-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #777;
+        }
+
+        .leg-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .ld-main {
+            background: var(--red);
+        }
+
+        .ld-extra {
+            background: var(--blue);
+        }
+
+        .ld-done {
+            background: var(--green);
+        }
+
+        .ld-cur {
+            background: var(--green);
+            box-shadow: 0 0 5px var(--green);
+        }
+
+        /* BUTTONS */
+        .export-btn {
+            position: fixed;
+            bottom: 84px;
+            right: 13px;
+            background: rgba(67,97,238,.42);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,.18);
+            padding: 6px 13px;
+            border-radius: 26px;
+            font-size: 10.5px;
+            cursor: pointer;
+            z-index: 50;
+            transition: transform .25s;
+            backdrop-filter: blur(6px);
+            display: none;
+        }
+
+            .export-btn.visible {
+                display: block;
+            }
+
+            .export-btn:hover {
+                transform: scale(1.05);
+            }
+
+        #reset-btn {
+            position: fixed;
+            top: 50px;
+            right: 148px;
+            background: rgba(240,69,90,.22);
+            color: #f06070;
+            border: 1px solid rgba(240,69,90,.32);
+            padding: 6px 11px;
+            border-radius: 26px;
+            font-size: 10px;
+            cursor: pointer;
+            z-index: 50;
+            display: none;
+            transition: all .25s;
+        }
+
+        #rebuild-btn {
+            position: fixed;
+            top: 82px;
+            right: 148px;
+            background: rgba(124,58,237,.22);
+            color: #c4b5fd;
+            border: 1px solid rgba(124,58,237,.32);
+            padding: 6px 11px;
+            border-radius: 26px;
+            font-size: 10px;
+            cursor: pointer;
+            z-index: 50;
+            display: none;
+            transition: all .25s;
+        }
+
+            #reset-btn.visible, #rebuild-btn.visible {
+                display: block;
+            }
+
+        #reset-btn:hover {
+            background: rgba(240,69,90,.42);
+        }
+
+        #rebuild-btn:hover {
+            background: rgba(124,58,237,.42);
+        }
+
+        /* PLACEHOLDER */
+        .placeholder-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%,-50%);
+            text-align: center;
+            color: #444;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+            .placeholder-msg .picon {
+                font-size: 48px;
+                margin-bottom: 12px;
+                display: block;
+            }
+
+            .placeholder-msg h2 {
+                font-size: 16px;
+                color: #555;
+                margin-bottom: 5px;
+            }
+
+            .placeholder-msg p {
+                font-size: 11.5px;
+                color: #3a3d50;
+            }
+
+        /* BOTTOM BAR */
+        #bottom-bar {
+            display: flex;
+            gap: 7px;
+            padding: 8px 12px;
+            background: rgba(7,8,15,.97);
+            border-top: 1px solid var(--border);
+            backdrop-filter: blur(12px);
+            z-index: 300;
+            flex-shrink: 0;
+        }
+
+        .bottom-btn {
+            flex: 1;
+            padding: 11px 14px;
+            border-radius: 12px;
+            border: 2px solid transparent;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all .25s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            background: transparent;
+            color: #444;
+            font-family: inherit;
+        }
+
+        .btn-chat {
+            background: rgba(124,58,237,.16);
+            color: #a78bfa;
+            border-color: rgba(124,58,237,.3);
+        }
+
+            .btn-chat.active {
+                background: #7c3aed;
+                color: #fff;
+                border-color: #7c3aed;
+            }
+
+        .btn-map {
+            background: rgba(240,69,90,.16);
+            color: #f9a0aa;
+            border-color: rgba(240,69,90,.3);
+        }
+
+            .btn-map.active {
+                background: #f0455a;
+                color: #fff;
+                border-color: #f0455a;
+            }
+
+        .btn-lb {
+            background: rgba(255,184,34,.16);
+            color: var(--gold);
+            border-color: rgba(255,184,34,.3);
+        }
+
+            .btn-lb.active {
+                background: var(--gold);
+                color: #000;
+                border-color: var(--gold);
+            }
+
+        /* MODAL */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.82);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(7px);
+        }
+
+            .modal-overlay.open {
+                display: flex;
+            }
+
+        .modal-box {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 26px;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .modal-title {
+            font-size: 17px;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 5px;
+        }
+
+        .modal-sub {
+            font-size: 11.5px;
+            color: var(--muted);
+            margin-bottom: 16px;
+            line-height: 1.55;
+        }
+
+        .modal-input {
+            width: 100%;
+            background: rgba(255,255,255,.05);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            padding: 9px 13px;
+            color: #fff;
+            font-size: 12px;
+            outline: none;
+            font-family: inherit;
+            margin-bottom: 8px;
+        }
+
+            .modal-input:focus {
+                border-color: rgba(124,58,237,.5);
+            }
+
+        .modal-row {
+            display: flex;
+            gap: 7px;
+            margin-top: 4px;
+        }
+
+        .modal-save {
+            flex: 1;
+            padding: 9px;
+            background: var(--purple);
+            color: #fff;
+            border: none;
+            border-radius: 9px;
+            font-size: 12.5px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+            .modal-save:hover {
+                background: #6d28d9;
+            }
+
+        .modal-cancel {
+            padding: 9px 14px;
+            background: transparent;
+            color: var(--muted);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            font-size: 12.5px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+            .modal-cancel:hover {
+                color: #fff;
+            }
+
+        .key-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 7px;
+            border-radius: 11px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .kb-ok {
+            background: rgba(34,209,122,.16);
+            color: var(--green);
+        }
+
+        .kb-no {
+            background: rgba(240,69,90,.16);
+            color: var(--red);
+        }
+
+        .gear-btn {
+            padding: 5px 9px;
+            background: rgba(255,255,255,.05);
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            color: var(--muted);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all .18s;
+        }
+
+            .gear-btn:hover {
+                color: #fff;
+                background: rgba(255,255,255,.09);
+            }
+
+        @media(max-width:768px) {
+            .node-main .node-circle {
+                width: 40px;
+                height: 40px;
+                font-size: 14px;
+            }
+
+            .node-extra .node-circle {
+                width: 28px;
+                height: 28px;
+                font-size: 11px;
+            }
+
+            .node-label {
+                font-size: 9px;
+            }
+
+            .bottom-btn {
+                font-size: 11.5px;
+                padding: 9px 10px;
+            }
+
+            #reset-btn, #rebuild-btn {
+                right: 110px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+
+        <div id="header">
+            <h1>🧠 Прогрессор</h1>
+            <div id="header-right">
+                <span id="key-status" class="key-badge kb-no">нет ключа</span>
+                <button class="gear-btn" onclick="openSettings()">⚙️</button>
+            </div>
+        </div>
+
+        <div id="content-area">
+
+            <!-- MAP TAB -->
+            <div id="tab-map" class="tab-panel active">
+                <div id="map-container">
+                    <!-- world-layer: всё внутри трансформируется вместе -->
+                    <div id="world-layer">
+                        <!-- SVG для линий — внутри world-layer! -->
+                        <svg id="lines-svg"></svg>
+                        <!-- Ноды поверх SVG -->
+                        <div id="nodes-layer"></div>
+                    </div>
+                </div>
+                <div class="placeholder-msg" id="placeholder">
+                    <span class="picon">🗺️</span>
+                    <h2>Маршрут ещё не построен</h2>
+                    <p>Перейди в Чат и расскажи<br>чему хочешь учиться</p>
+                </div>
+            </div>
+
+            <!-- CHAT TAB -->
+            <div id="tab-chat" class="tab-panel">
+                <div class="chat-header">
+                    <div class="chat-avatar">🤖</div>
+                    <div class="chat-header-info">
+                        <h3>Прогрессор</h3>
+                        <span id="chat-status-text">AI-ментор • напиши чему хочешь учиться</span>
+                    </div>
+                </div>
+                <div class="chat-messages" id="chat-messages"></div>
+
+                <div class="test-panel" id="test-panel" style="display:none">
+                    <div class="test-q" id="test-q"></div>
+                    <div class="test-row">
+                        <input class="test-input" id="test-input" placeholder="Твой ответ..." onkeydown="if(event.key==='Enter')submitTest()">
+                        <button class="test-ok" onclick="submitTest()">✓</button>
+                        <button class="test-skip" onclick="skipTest()">Пропустить</button>
+                    </div>
+                </div>
+
+                <div class="choices-panel" id="choices-panel" style="display:none">
+                    <div class="choices-title">🌿 Выбери следующий путь:</div>
+                    <div class="choices-list" id="choices-list"></div>
+                </div>
+
+                <div class="learning-controls" id="learning-controls" style="display:none">
+                    <button class="lc-btn lc-next" onclick="advanceLearning()">✅ Дальше</button>
+                    <button class="lc-btn lc-test" onclick="requestTest()">📝 Тест</button>
+                    <button class="lc-btn lc-map" onclick="switchTab('map')">🗺️ Карта</button>
+                    <button class="lc-btn lc-rebuild" onclick="requestRebuild()">🔄 Пересобрать</button>
+                </div>
+
+                <div class="chat-input-area" id="chat-input-area">
+                    <input class="chat-input" id="chat-input"
+                           placeholder="Напиши чему хочешь учиться..."
+                           onkeydown="if(event.key==='Enter')sendMessage()">
+                    <button class="send-btn" id="send-btn" onclick="sendMessage()">➤</button>
+                </div>
+            </div>
+
+            <!-- LEADERBOARD TAB -->
+            <div id="tab-leaderboard" class="tab-panel">
+                <div class="lb-title">🏆 Рейтинг</div>
+                <div class="lb-sub">Топ учеников Прогрессора</div>
+                <table class="lb-table">
+                    <thead><tr><th>Ученик</th><th style="text-align:right">Очки</th></tr></thead>
+                    <tbody id="lb-tbody"></tbody>
+                </table>
+                <div class="lb-myscore">
+                    <div class="msl">Твои очки</div>
+                    <div class="msv" id="my-score-value">0</div>
+                    <div class="msr" id="my-score-rank">Пока нет в рейтинге</div>
+                </div>
+            </div>
+
+        </div>
+
+        <div id="bottom-bar">
+            <button class="bottom-btn btn-chat" id="btn-chat" onclick="switchTab('chat')">💬 Чат</button>
+            <button class="bottom-btn btn-map active" id="btn-map" onclick="switchTab('map')">🗺️ Маршрут</button>
+            <button class="bottom-btn btn-lb" id="btn-lb" onclick="switchTab('leaderboard')">🏆 Рейтинг</button>
+        </div>
+    </div>
+
+    <div class="notification" id="notification"></div>
+
+    <div class="progress-badge" id="progress-badge">
+        <div class="pb-pct" id="pb-pct">0%</div>
+        <div class="pb-count" id="pb-count">0 / 0</div>
+        <div class="pb-bar-out"><div class="pb-bar-in" id="pb-bar" style="width:0%"></div></div>
+    </div>
+
+    <div class="legend" id="legend">
+        <div class="leg-item"><div class="leg-dot ld-main"></div> Основной этап</div>
+        <div class="leg-item"><div class="leg-dot ld-extra"></div> Доп. ветка</div>
+        <div class="leg-item"><div class="leg-dot ld-done"></div> Пройдено</div>
+        <div class="leg-item"><div class="leg-dot ld-cur"></div> Текущий</div>
+    </div>
+    <button class="export-btn visible-on-map" id="export-btn" onclick="exportProgress()" style="display:none">📥 Экспорт</button>
+    <button id="reset-btn" onclick="resetProgress()">🔄 Сброс</button>
+    <button id="rebuild-btn" onclick="requestRebuild()">🔨 Пересобрать</button>
+
+    <!-- Tooltip живёт в body, позиционируется через fixed -->
+    <div class="node-tooltip" id="node-tooltip">
+        <div class="tt-title" id="tt-title"></div>
+        <div class="tt-why" id="tt-why"></div>
+        <div class="tt-skills" id="tt-skills"></div>
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px;">
+            <a class="tt-btn tt-open" id="tt-link" href="#" target="_blank">🔗 Открыть</a>
+            <button class="tt-btn tt-test" id="tt-test-btn" onclick="testFromMap()" style="display:none">📝 Тест</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal-box">
+            <div class="modal-title">⚙️ Настройки API</div>
+            <div class="modal-sub">
+                Ключ <b>OpenRouter</b> (бесплатные модели):<br>
+                <a href="https://openrouter.ai/keys" target="_blank" style="color:#a78bfa;">openrouter.ai/keys</a> → формат <code style="color:#7bfabc">sk-or-v1-...</code><br><br>
+                Или ключ <b>Anthropic</b>: <code style="color:#7bfabc">sk-ant-...</code>
+            </div>
+            <input class="modal-input" id="api-key-input" placeholder="sk-or-v1-... или sk-ant-...">
+            <input class="modal-input" id="username-input" placeholder="Твоё имя (для рейтинга)">
+            <div class="modal-row">
+                <button class="modal-save" onclick="saveSettings()">💾 Сохранить</button>
+                <button class="modal-cancel" onclick="closeSettings()">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════════════════
+        //  КОНФИГ
+        // ═══════════════════════════════════════════════════════
+        const CFG = {
+        orUrl:   'https://openrouter.ai/api/v1/chat/completions',
+        antUrl:  'https://api.anthropic.com/v1/messages',
+        fastModel:  'poolside/laguna-xs.2:free',
+        smartModel: 'openrouter/owl-alpha',
+
+        interviewSys: `Ты AI-ментор "Прогрессор". Собери профиль ученика.
+        Нужно: target_topic, current_level (новичок/базовый/продвинутый), goal.
+        Запрещённые темы: насилие, оружие, ЛГБТ, секс, политика, наркотики, хакинг.
+        Если нарушение → {"status":"blocked","message":"Эта тема нарушает правила."}
+        Если нужны уточнения → {"status":"need_more","message":"вопрос...","collected":{...}}
+        Если всё собрано → {"status":"ready","message":"Строю маршрут 🚀","profile":{"target_topic":"...","current_level":"новичок","goal":"..."}}`,
+
+        roadmapSys: `Ты архитектор образовательных графов. Создай образовательный граф.
+
+        ПРАВИЛА:
+        1. core_path: 5-8 основных этапов (is_core:true), строго последовательно.
+        2. Добавь 2-4 дополнительных ответвления (is_core:false).
+        3. dependencies: список node_id предшественников. Первый узел: dependencies:[].
+        4. ОБЯЗАТЕЛЬНО roadmap_motivation (2-3 предложения).
+        5. url: реальные ссылки на stepik.org, youtube.com, habr.com.
+
+        JSON ОТВЕТ СТРОГО:
+        {"graph_title":"...","roadmap_motivation":"...","nodes":[{"node_id":"1","title":"...","level":"новичок","is_core":true,"skills":["..."],"dependencies":[],"url":"https://...","why":"зачем этот этап"}],"core_path":["1","2"],"branches":[{"from_node":"2","nodes":["b1"]}]}`,
+
+        mentorSys: t => `Ты краткий AI-ментор. Ученик на этапе: "${t}". Отвечай 2-3 предложения. Запрещённые темы: политика, секс, насилие. Чтобы перестроить — скажи написать "перестрой".`,
+        testSys: `Добрый экзаменатор. Если суть верна — засчитывай. Верни ТОЛЬКО JSON: {"passed":true/false,"feedback":"комментарий на русском"}`,
+        genTestSys: `Придумай один простой вопрос по теме. ТОЛЬКО JSON: {"question":"...","correct_answer":"..."}`
+        };
+
+        // ═══════════════════════════════════════════════════════
+        //  STATE
+        // ═══════════════════════════════════════════════════════
+        const S = {
+        apiKey: localStorage.getItem('prog_key') || '',
+        username: localStorage.getItem('prog_user') || ('Ученик_' + Math.random().toString(36).slice(2,7)),
+        userScore: parseInt(localStorage.getItem('prog_score') || '0'),
+        appMode: 'interview',   // interview | learning | testing | choosing | rebuild
+        session: {
+        profile: {},
+        graph: {},
+        chatHistory: [],
+        currentNodeId: null,
+        completedNodes: new Set(JSON.parse(localStorage.getItem('prog_done') || '[]')),
+        currentTest: null,
+        availableChoices: [],
+        },
+        roadmap: { mainNodes:[], extraNodes:[], title:'' },
+        isGenerated: false,
+        isProcessing: false,
+        // map transform
+        ox:0, oy:0, scale:1,
+        isDragging:false, dsx:0, dsy:0,
+        // map geometry — set after render
+        mapW:0, mapH:0,
+        // node positions { id: {x,y} }
+        positions: {},
+        tooltipId: null,
+        };
+        if (!localStorage.getItem('prog_user')) localStorage.setItem('prog_user', S.username);
+
+        // ═══════════════════════════════════════════════════════
+        //  SETTINGS
+        // ═══════════════════════════════════════════════════════
+        function openSettings(){
+        document.getElementById('api-key-input').value = S.apiKey;
+        document.getElementById('username-input').value = S.username;
+        document.getElementById('settings-modal').classList.add('open');
+        }
+        function closeSettings(){ document.getElementById('settings-modal').classList.remove('open'); }
+        function saveSettings(){
+        const k = document.getElementById('api-key-input').value.trim();
+        const n = document.getElementById('username-input').value.trim();
+        if(k){ S.apiKey=k; localStorage.setItem('prog_key',k); }
+        if(n){ S.username=n; localStorage.setItem('prog_user',n); }
+        updateKeyBadge();
+        closeSettings();
+        showNotif('✅ Сохранено!','#22d17a');
+        }
+        function updateKeyBadge(){
+        const el=document.getElementById('key-status');
+        if(S.apiKey){ el.textContent='🔑 ключ есть'; el.className='key-badge kb-ok'; }
+        else { el.textContent='нет ключа'; el.className='key-badge kb-no'; }
+        }
+        updateKeyBadge();
+
+        // ═══════════════════════════════════════════════════════
+        //  LLM CALL
+        // ═══════════════════════════════════════════════════════
+        async function callLLM(messages, smart=false, temp=0.3, retries=2){
+        if(!S.apiKey) return null;
+        const isAnt = S.apiKey.startsWith('sk-ant-');
+        for(let a=0;a<retries;a++){
+        try{
+        const ctrl = new AbortController();
+        const tid = setTimeout(()=>ctrl.abort(), smart ? 35000 : 18000);
+        let res;
+        if(isAnt){
+        const sys = messages.find(m=>m.role==='system');
+        const rest = messages.filter(m=>m.role!=='system');
+        res = await fetch(CFG.antUrl,{method:'POST',
+        headers:{'x-api-key':S.apiKey,'anthropic-version':'2023-06-01','content-type':'application/json'},
+        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2048,temperature:temp,
+        system:sys?.content, messages:rest}), signal:ctrl.signal});
+        } else {
+        const model = smart ? CFG.smartModel : CFG.fastModel;
+        res = await fetch(CFG.orUrl,{method:'POST',
+        headers:{'Authorization':'Bearer '+S.apiKey,'Content-Type':'application/json'},
+        body:JSON.stringify({model, messages, temperature:temp}), signal:ctrl.signal});
+        }
+        clearTimeout(tid);
+        if(res.status===200){
+        const d=await res.json();
+        const c = isAnt ? d?.content?.[0]?.text?.trim() : d?.choices?.[0]?.message?.content?.trim();
+        if(c) return c;
+        } else if(res.status===429){ await sleep(1500); }
+        else if([500,502,503].includes(res.status)){ await sleep(2000); }
+        else break;
+        }catch(e){ await sleep(1000); }
+        }
+        return null;
+        }
+        function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+        function extractJSON(raw){
+        if(!raw) return null;
+        raw = raw.replace(/```(?:json)?/g,'').trim();
+        const m = raw.match(/\{.*\}/s);
+        if(m) raw=m[0].trim();
+        try{ return JSON.parse(raw); }
+        catch(e){ try{ return JSON.parse(raw.replace(/'/g,'"')); }catch(e2){ return null; } }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  CHAT UI
+        // ═══════════════════════════════════════════════════════
+        function addMsg(role,html){
+        const c=document.getElementById('chat-messages');
+        const m=document.createElement('div');
+        m.className='chat-msg '+role;
+        m.innerHTML=`${html}<div class="msg-time">${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>`;
+        c.appendChild(m); c.scrollTop=c.scrollHeight;
+        }
+        function setUI(mode){
+        const ia=document.getElementById('chat-input-area');
+        const tp=document.getElementById('test-panel');
+        const cp=document.getElementById('choices-panel');
+        const lc=document.getElementById('learning-controls');
+        const st=document.getElementById('chat-status-text');
+        ia.style.display='flex'; tp.style.display='none'; cp.style.display='none'; lc.style.display='none';
+        if(mode==='learning'){
+        lc.style.display='flex';
+        document.getElementById('chat-input').placeholder='Задай вопрос по теме...';
+        st.textContent='🎓 Режим обучения';
+        } else if(mode==='testing'){
+        tp.style.display='block'; ia.style.display='none';
+        st.textContent='📝 Проверка знаний';
+        } else if(mode==='choosing'){
+        cp.style.display='block'; ia.style.display='none';
+        st.textContent='🌿 Выбор пути';
+        } else {
+        document.getElementById('chat-input').placeholder='Напиши чему хочешь учиться...';
+        st.textContent='AI-ментор • напиши чему хочешь учиться';
+        }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  SEND MESSAGE
+        // ═══════════════════════════════════════════════════════
+        async function sendMessage(){
+        if(S.isProcessing) return;
+        const inp=document.getElementById('chat-input');
+        const msg=inp.value.trim();
+        if(!msg) return;
+        if(!S.apiKey){ openSettings(); return; }
+        inp.value=''; S.isProcessing=true;
+        document.getElementById('send-btn').disabled=true;
+        addMsg('user',msg);
+
+        if(S.appMode==='learning'){ await mentorChat(msg); finishProcessing(); return; }
+        if(S.appMode==='rebuild'){ await doRebuild(msg); finishProcessing(); return; }
+
+        // Interview
+        S.session.chatHistory.push({role:'user',content:msg});
+        if(S.session.chatHistory.length>10) S.session.chatHistory=S.session.chatHistory.slice(-10);
+        addMsg('bot','⏳ думаю...');
+        const raw=await callLLM([{role:'system',content:CFG.interviewSys},...S.session.chatHistory],false,0.2);
+        document.querySelector('#chat-messages .chat-msg:last-child')?.remove();
+        if(!raw){ addMsg('bot','⚠️ Нет ответа. Проверь ключ ⚙️'); finishProcessing(); return; }
+        const res=extractJSON(raw);
+        if(!res){ S.session.chatHistory.push({role:'assistant',content:raw}); addMsg('bot',raw); finishProcessing(); return; }
+        if(res.collected) Object.assign(S.session.profile,res.collected);
+        S.session.chatHistory.push({role:'assistant',content:JSON.stringify(res)});
+        if(res.status==='blocked'){ addMsg('bot','🛑 '+res.message); S.session.chatHistory=[]; }
+        else if(res.status==='need_more'){ addMsg('bot',res.message||'Расскажи подробнее!'); }
+        else if(res.status==='ready'){
+        S.session.profile={...S.session.profile,...(res.profile||{})};
+        addMsg('bot',res.message||'🚀 Строю маршрут...');
+        await buildRoadmap(S.session.profile);
+        }
+        finishProcessing();
+        }
+        function finishProcessing(){ S.isProcessing=false; document.getElementById('send-btn').disabled=false; }
+
+        // ═══════════════════════════════════════════════════════
+        //  BUILD ROADMAP
+        // ═══════════════════════════════════════════════════════
+        async function buildRoadmap(profile){
+        addMsg('bot','🗺️ Строю граф обучения...');
+        const prompt=`Профиль: Тема "${profile.target_topic}", Уровень "${profile.current_level||'новичок'}", Цель "${profile.goal||'саморазвитие'}". Создай полный образовательный граф.`;
+        const raw=await callLLM([{role:'system',content:CFG.roadmapSys},{role:'user',content:prompt}],true,0.25,3);
+        document.querySelector('#chat-messages .chat-msg:last-child')?.remove();
+        if(!raw){ addMsg('bot','❌ Не смог построить маршрут. Попробуй уточнить тему.'); return; }
+        const graph=extractJSON(raw);
+        if(!graph||!graph.nodes?.length){ addMsg('bot','❌ Некорректный ответ. Попробуй снова.'); return; }
+        S.session.graph=graph;
+        loadGraph(graph);
+        }
+
+        function loadGraph(graph){
+        const nodes=graph.nodes||[];
+        const corePath=(graph.core_path||[]).map(String);
+        const coreSet=new Set(corePath);
+        const branches=graph.branches||[];
+
+        const mainNodes = corePath.length
+        ? corePath.map(id=>nodes.find(n=>String(n.node_id)===id)).filter(Boolean)
+        : nodes.filter(n=>n.is_core);
+        const extraNodes = nodes.filter(n=>!coreSet.has(String(n.node_id))&&!mainNodes.includes(n));
+
+        // Карта: nodeId → parentMainId
+        const branchMap={};
+        branches.forEach(b=>{
+        const fid=String(b.from_node);
+        (b.nodes||[]).forEach(nid=>{ branchMap[String(nid)]=fid; });
+        });
+        extraNodes.forEach(en=>{
+        const eid=String(en.node_id);
+        if(!branchMap[eid]){
+        const deps=(en.dependencies||[]).map(String);
+        const pid=deps.find(d=>mainNodes.some(m=>String(m.node_id)===d))||
+        (mainNodes[0]?String(mainNodes[0].node_id):null);
+        if(pid) branchMap[eid]=pid;
+        }
+        });
+
+        const makeNode=(n,isMain)=>({
+        id:String(n.node_id), title:n.title||'?', level:n.level||'новичок',
+        skills:n.skills||[], url:n.url||`https://www.youtube.com/results?search_query=${encodeURIComponent(n.title+' обучение')}`,
+        why:n.why||'', dependencies:(n.dependencies||[]).map(String), isCore:isMain,
+        });
+
+        S.roadmap={
+        mainNodes: mainNodes.map(n=>makeNode(n,true)),
+        extraNodes: extraNodes.map(n=>({...makeNode(n,false), parentMainId:branchMap[String(n.node_id)]||null})),
+        title: graph.graph_title||'Маршрут обучения',
+        };
+
+        S.session.completedNodes=new Set();
+        S.isGenerated=true;
+        localStorage.setItem('prog_done','[]');
+
+        startLearning();
+        switchTab('map');
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  LEARNING
+        // ═══════════════════════════════════════════════════════
+        function getCurrentCourse(){
+        if(!S.session.currentNodeId) return null;
+        return [...S.roadmap.mainNodes,...S.roadmap.extraNodes].find(n=>n.id===S.session.currentNodeId)||null;
+        }
+        function getAvailableNodes(){
+        const done=S.session.completedNodes;
+        return [...S.roadmap.mainNodes,...S.roadmap.extraNodes]
+        .filter(n=>!done.has(n.id)&&(n.dependencies||[]).every(d=>done.has(d)))
+        .sort((a,b)=>{
+        const ai=S.roadmap.mainNodes.findIndex(x=>x.id===a.id);
+        const bi=S.roadmap.mainNodes.findIndex(x=>x.id===b.id);
+        if(ai>=0&&bi>=0) return ai-bi;
+        if(ai>=0) return -1; if(bi>=0) return 1; return 0;
+        });
+        }
+
+        function startLearning(){
+        const first=S.roadmap.mainNodes[0];
+        if(!first) return;
+        S.session.currentNodeId=first.id;
+        S.appMode='learning';
+        document.getElementById('placeholder').style.display='none';
+        showRoadmapUI();
+        updateProgress();
+        updateLeaderboard();
+        renderMap();
+        setTimeout(()=>focusStart(),200);
+        const mot=S.session.graph.roadmap_motivation;
+        if(mot) addMsg('bot',`🧠 <b>Почему такой план:</b> ${mot}`);
+        const cur=getCurrentCourse();
+        if(cur) addMsg('bot',`✅ Маршрут построен!<br><br>👉 <b>Шаг 1:</b> <a href="${cur.url}" target="_blank" style="color:#00d4d8">${cur.title}</a><br>💡 ${cur.why||'Начни с этого — это база.'}<br><br>Нажми <b>Дальше</b> когда будешь готов.`);
+        setUI('learning');
+        updateHighlight();
+        }
+
+        async function advanceLearning(){
+        if(S.isProcessing) return;
+        const cur=getCurrentCourse(); if(!cur) return;
+        await doTest(cur);
+        }
+        async function requestTest(){
+        if(S.isProcessing) return;
+        const cur=getCurrentCourse(); if(!cur) return;
+        await doTest(cur);
+        }
+        async function doTest(cur){
+        S.isProcessing=true;
+        addMsg('bot','⏳ Генерирую вопрос...');
+        const raw=await callLLM([{role:'system',content:CFG.genTestSys},{role:'user',content:'Курс: '+cur.title}],false,0.4);
+        document.querySelector('#chat-messages .chat-msg:last-child')?.remove();
+        const test=extractJSON(raw);
+        if(!test?.question){ addMsg('bot','📋 Тест не требуется — засчитываю автоматически! 🎉'); markComplete(); S.isProcessing=false; return; }
+        S.session.currentTest=test;
+        S.appMode='testing';
+        document.getElementById('test-q').textContent='❓ '+test.question;
+        document.getElementById('test-input').value='';
+        addMsg('bot',`📝 Проверяем знания по <b>${cur.title}</b>`);
+        setUI('testing');
+        S.isProcessing=false;
+        document.getElementById('test-input').focus();
+        }
+        async function submitTest(){
+        const ans=document.getElementById('test-input').value.trim();
+        if(!ans||S.isProcessing) return;
+        const test=S.session.currentTest; if(!test) return;
+        S.isProcessing=true;
+        const raw=await callLLM([{role:'system',content:CFG.testSys},{role:'user',content:`ВОПРОС: ${test.question}\nЭТАЛОН: ${test.correct_answer}\nОТВЕТ: ${ans}`}],false,0.1);
+        const res=extractJSON(raw);
+        S.appMode='learning'; setUI('learning');
+        if(res?.passed){ addMsg('bot',`✅ Засчитано! ${res.feedback||''}`); spawnConfetti(); markComplete(); }
+        else { addMsg('bot',`❌ ${res?.feedback||'Попробуй ещё раз.'}`); }
+        S.isProcessing=false;
+        }
+        function skipTest(){ S.appMode='learning'; setUI('learning'); addMsg('bot','⏭️ Пропущен. Идём дальше!'); markComplete(); }
+
+        function markComplete(){
+        const id=S.session.currentNodeId; if(!id||S.session.completedNodes.has(id)) return;
+        S.session.completedNodes.add(id);
+        localStorage.setItem('prog_done',JSON.stringify([...S.session.completedNodes]));
+        addScore(10+S.session.completedNodes.size*3);
+        updateNodeStyles();
+        updateProgress();
+        updateLeaderboard();
+        updateHighlight();
+        const avail=getAvailableNodes();
+        if(!avail.length){ addMsg('bot','🏁 Весь маршрут пройден! 🎊 Напиши новую тему.'); S.appMode='interview'; setUI('interview'); return; }
+        if(avail.length===1){ S.session.currentNodeId=avail[0].id; const c=getCurrentCourse(); addMsg('bot',`👉 <b>Следующий шаг:</b> <a href="${c.url}" target="_blank" style="color:#00d4d8">${c.title}</a><br>💡 ${c.why||''}`); updateHighlight(); return; }
+        S.session.availableChoices=avail; S.appMode='choosing';
+        const list=document.getElementById('choices-list'); list.innerHTML='';
+        avail.forEach((n,i)=>{
+        const isMain=S.roadmap.mainNodes.some(m=>m.id===n.id);
+        const btn=document.createElement('button');
+        btn.className='choice-btn '+(isMain?'choice-core':'choice-branch');
+        btn.innerHTML=`<b>${i+1}.</b> ${isMain?'📍 Основа':'🌿 Ветка'} — ${n.title}`;
+        btn.onclick=()=>chooseNode(i);
+        list.appendChild(btn);
+        });
+        setUI('choosing');
+        }
+        function chooseNode(i){
+        const n=S.session.availableChoices[i]; if(!n) return;
+        S.session.currentNodeId=n.id; S.appMode='learning';
+        const c=getCurrentCourse();
+        addMsg('bot',`✅ Выбран: <b>${c.title}</b><br>🔗 <a href="${c.url}" target="_blank" style="color:#00d4d8">Открыть</a><br>💡 ${c.why||''}`);
+        setUI('learning'); updateHighlight();
+        }
+        async function mentorChat(msg){
+        const cur=getCurrentCourse();
+        S.session.chatHistory.push({role:'user',content:msg});
+        if(S.session.chatHistory.length>8) S.session.chatHistory=S.session.chatHistory.slice(-8);
+        addMsg('bot','⏳...');
+        const raw=await callLLM([{role:'system',content:CFG.mentorSys(cur?.title||'')},...S.session.chatHistory.slice(-6)],false,0.3);
+        document.querySelector('#chat-messages .chat-msg:last-child')?.remove();
+        if(raw){ S.session.chatHistory.push({role:'assistant',content:raw}); addMsg('bot',raw); }
+        else addMsg('bot','Связь пропала, попробуй снова.');
+        }
+        function requestRebuild(){ S.appMode='rebuild'; setUI('interview'); addMsg('bot','🔨 Что изменить? Например: "новая тема: JS", "добавь практику"'); switchTab('chat'); }
+        async function doRebuild(msg){
+        const m=msg.match(/(?:новая тема|тема)[:\s]+(.+)/i);
+        if(m) S.session.profile.target_topic=m[1].trim();
+        S.session.profile.goal=(S.session.profile.goal||'')+`. УТОЧНЕНИЕ: ${msg}`;
+        S.session.chatHistory=[];
+        addMsg('bot','⚙️ Пересобираю маршрут...');
+        await buildRoadmap(S.session.profile);
+        }
+        function testFromMap(){ if(S.appMode!=='learning'||!S.isGenerated) return; switchTab('chat'); setTimeout(requestTest,100); }
+
+        function updateHighlight(){
+        document.querySelectorAll('.node').forEach(el=>{
+        el.classList.toggle('current-step',el.dataset.nodeId===S.session.currentNodeId);
+        });
+        }
+        function resetProgress(){
+        if(!confirm('Сбросить весь прогресс?')) return;
+        S.userScore=0; S.session.completedNodes.clear();
+        S.session.currentNodeId=S.roadmap.mainNodes[0]?.id||null;
+        localStorage.setItem('prog_score','0'); localStorage.setItem('prog_done','[]');
+        updateNodeStyles(); updateProgress(); updateLeaderboard(); updateHighlight();
+        showNotif('🔄 Сброшено','#f97316');
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  MAP RENDERING  ← ГЛАВНОЕ ИСПРАВЛЕНИЕ
+        //  Все позиции — абсолютные внутри world-layer.
+        //  SVG #lines-svg тоже внутри world-layer.
+        //  Трансформируется весь world-layer целиком.
+        // ═══════════════════════════════════════════════════════
+
+        // Константы для раскладки
+        const NODE_R_MAIN = 26;   // радиус основного узла
+        const NODE_R_EXTRA = 18;  // радиус дополнительного
+        const COL_SPACING = 220;  // горизонтальное расстояние между основной колонкой и ветками
+        const ROW_SPACING = 170;  // вертикальное расстояние между основными узлами
+        const MARGIN_X = 80;      // левый отступ для основной колонки
+        const MARGIN_Y = 100;     // верхний отступ
+
+        function computeLayout(){
+        const mains=S.roadmap.mainNodes;
+        const extras=S.roadmap.extraNodes;
+        S.positions={};
+
+        // Основные узлы: зигзаг по X, последовательно по Y (сверху вниз)
+        const centerX = Math.max(window.innerWidth/2, 200);
+        const amplitude = Math.min(160, window.innerWidth * 0.2);
+
+        mains.forEach((n,i)=>{
+        // Зигзаг: чётные — левее центра, нечётные — правее
+        const side = (i%2===0) ? -1 : 1;
+        const x = centerX + side * amplitude;
+        const y = MARGIN_Y + i * ROW_SPACING;
+        S.positions[n.id]={x, y};
+        });
+
+        // Дополнительные узлы: сбоку от родителя
+        // Группируем ветки по родителю
+        const byParent={};
+        extras.forEach(n=>{
+        const pid=n.parentMainId;
+        if(!byParent[pid]) byParent[pid]=[];
+        byParent[pid].push(n);
+        });
+
+        Object.entries(byParent).forEach(([pid,children])=>{
+        const pPos=S.positions[pid];
+        if(!pPos) return;
+        // Размещаем ветки с противоположной от родителя стороны
+        // Родитель смещён влево (-amplitude) → ветки справа, и наоборот
+        const parentSideIsLeft = pPos.x < centerX;
+        const dx = parentSideIsLeft ? COL_SPACING : -COL_SPACING;
+        children.forEach((n,ci)=>{
+        const yOffset = (ci - (children.length-1)/2) * 70;
+        S.positions[n.id]={x: pPos.x + dx, y: pPos.y + yOffset};
+        });
+        });
+
+        // Размер холста
+        const allPos=Object.values(S.positions);
+        S.mapW = allPos.reduce((m,p)=>Math.max(m,p.x+200),window.innerWidth);
+        S.mapH = allPos.reduce((m,p)=>Math.max(m,p.y+200),window.innerHeight);
+        }
+
+        function renderMap(){
+        computeLayout();
+        renderLines();
+        renderNodes();
+        updateNodeStyles();
+        updateHighlight();
+        setupMapInteraction();
+        }
+
+        function renderLines(){
+        const svg=document.getElementById('lines-svg');
+        svg.setAttribute('width', S.mapW);
+        svg.setAttribute('height', S.mapH);
+        svg.setAttribute('viewBox', `0 0 ${S.mapW} ${S.mapH}`);
+        svg.innerHTML='';
+
+        // Defs
+        const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+        defs.innerHTML=`
+        <marker id="arr-main" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="rgba(240,69,90,0.7)"/>
+        </marker>
+        <marker id="arr-extra" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="rgba(67,97,238,0.6)"/>
+        </marker>`;
+        svg.appendChild(defs);
+
+        // Линии между основными узлами (последовательно)
+        const mains=S.roadmap.mainNodes;
+        for(let i=1;i<mains.length;i++){
+        const a=S.positions[mains[i-1].id];
+        const b=S.positions[mains[i].id];
+        if(!a||!b) continue;
+        drawCurve(svg,a,b,'rgba(240,69,90,0.55)',3,'#arr-main',false);
+        }
+
+        // Линии от основных к дополнительным
+        S.roadmap.extraNodes.forEach(n=>{
+        const pPos=S.positions[n.parentMainId];
+        const nPos=S.positions[n.id];
+        if(!pPos||!nPos) return;
+        drawCurve(svg,pPos,nPos,'rgba(67,97,238,0.5)',2,'#arr-extra',true);
+        });
+        }
+
+        function drawCurve(svg,a,b,color,width,markerId,dashed){
+        const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+        // Красивая кривая Безье
+        const mx=(a.x+b.x)/2;
+        const my=(a.y+b.y)/2;
+        const cx=mx+(b.y-a.y)*0.25;
+        const cy=my-(b.x-a.x)*0.15;
+        const d=`M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`;
+        path.setAttribute('d',d);
+        path.setAttribute('fill','none');
+        path.setAttribute('stroke',color);
+        path.setAttribute('stroke-width',width);
+        path.setAttribute('stroke-linecap','round');
+        if(dashed) path.setAttribute('stroke-dasharray','6 4');
+        path.setAttribute('marker-end',`url(${markerId})`);
+        // Glow
+        const glow=path.cloneNode();
+        glow.setAttribute('stroke',color.replace(/[\d.]+\)$/,'0.15)'));
+        glow.setAttribute('stroke-width',width*4);
+        glow.removeAttribute('marker-end');
+        svg.appendChild(glow);
+        svg.appendChild(path);
+        }
+
+        function renderNodes(){
+        const layer=document.getElementById('nodes-layer');
+        layer.innerHTML='';
+
+        const all=[
+        ...S.roadmap.mainNodes.map((n,i)=>({...n,idx:i,isMain:true})),
+        ...S.roadmap.extraNodes.map(n=>({...n,isMain:false}))
+        ];
+
+        all.forEach(node=>{
+        const pos=S.positions[node.id];
+        if(!pos) return;
+        const r=node.isMain?NODE_R_MAIN:NODE_R_EXTRA;
+        const el=document.createElement('div');
+        el.className=`node ${node.isMain?'node-main':'node-extra'}`;
+        el.dataset.nodeId=node.id;
+        // Центрируем узел на позиции
+        el.style.left=(pos.x-r)+'px';
+        el.style.top=(pos.y-r)+'px';
+        el.innerHTML=`
+        <div class="node-circle" data-node-id="${node.id}">${node.isMain?(node.idx+1):'◆'}</div>
+        <div class="node-label">${trunc(node.title,22)}</div>
+        ${node.isMain?`<div class="node-checkbox" data-node-id="${node.id}"><span class="checkmark">✓</span></div>`:''}
+        `;
+        el.querySelector('.node-circle').addEventListener('click',e=>{ e.stopPropagation(); showTooltip(node.id,pos); });
+        const cb=el.querySelector('.node-checkbox');
+        if(cb) cb.addEventListener('click',e=>{ e.stopPropagation(); handleCheck(node.id); });
+        layer.appendChild(el);
+        });
+        }
+
+        function updateNodeStyles(){
+        document.querySelectorAll('.node').forEach(el=>{
+        const id=el.dataset.nodeId;
+        const done=S.session.completedNodes.has(id);
+        el.classList.toggle('completed-node',done);
+        el.querySelector('.node-circle')?.classList.toggle('completed',done);
+        el.querySelector('.node-checkbox')?.classList.toggle('checked',done);
+        });
+        updateNodeLocks();
+        }
+        function updateNodeLocks(){
+        const all=[...S.roadmap.mainNodes,...S.roadmap.extraNodes];
+        document.querySelectorAll('.node').forEach(el=>{
+        const id=el.dataset.nodeId;
+        const node=all.find(n=>n.id===id);
+        if(!node) return;
+        const unlocked=(node.dependencies||[]).every(d=>S.session.completedNodes.has(d));
+        el.classList.toggle('locked',!unlocked);
+        });
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  TOOLTIP (fixed position — не зависит от transform)
+        // ═══════════════════════════════════════════════════════
+        function showTooltip(nodeId, worldPos){
+        if(S.tooltipId===nodeId){ hideTooltip(); return; }
+        S.tooltipId=nodeId;
+        const all=[...S.roadmap.mainNodes,...S.roadmap.extraNodes];
+        const node=all.find(n=>n.id===nodeId); if(!node) return;
+        document.getElementById('tt-title').textContent=node.title;
+        document.getElementById('tt-why').textContent=node.why||'Важный шаг на пути к цели.';
+        document.getElementById('tt-skills').innerHTML=(node.skills||[]).slice(0,5).map(s=>`<span class="tt-skill">${s}</span>`).join('');
+        document.getElementById('tt-link').href=node.url||'#';
+        const testBtn=document.getElementById('tt-test-btn');
+        testBtn.style.display=(node.id===S.session.currentNodeId&&S.appMode==='learning')?'inline-flex':'none';
+
+        // Позиция tooltip в экранных координатах
+        // worldPos — координата в world-layer → переводим в экранные
+        const screenX = worldPos.x * S.scale + S.ox;
+        const screenY = worldPos.y * S.scale + S.oy;
+        const tt=document.getElementById('node-tooltip');
+        tt.style.visibility='hidden'; tt.classList.add('visible');
+        const tw=tt.offsetWidth, th=tt.offsetHeight;
+        tt.style.visibility='';
+        let left=screenX+36, top=screenY-20;
+        if(left+tw>window.innerWidth-10) left=screenX-tw-10;
+        if(top+th>window.innerHeight-90) top=screenY-th+20;
+        if(top<10) top=10;
+        tt.style.left=left+'px'; tt.style.top=top+'px';
+        }
+        function hideTooltip(){ S.tooltipId=null; document.getElementById('node-tooltip').classList.remove('visible'); }
+
+        function handleCheck(nodeId){
+        if(S.session.currentNodeId!==nodeId){ showNotif('⚠️ Сначала пройди текущий этап!','#f0455a'); return; }
+        switchTab('chat'); setTimeout(requestTest,100);
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  MAP INTERACTION (drag + wheel zoom)
+        // ═══════════════════════════════════════════════════════
+        let _interactionReady=false;
+        function setupMapInteraction(){
+        if(_interactionReady) return;
+        _interactionReady=true;
+        const c=document.getElementById('map-container');
+
+        // Mouse drag
+        c.addEventListener('mousedown',e=>{
+        if(e.target.closest('.node-circle')||e.target.closest('.node-checkbox')) return;
+        S.isDragging=true; S.dsx=e.clientX-S.ox; S.dsy=e.clientY-S.oy;
+        c.classList.add('dragging');
+        });
+        window.addEventListener('mousemove',e=>{
+        if(!S.isDragging) return;
+        S.ox=e.clientX-S.dsx; S.oy=e.clientY-S.dsy; applyTransform();
+        });
+        window.addEventListener('mouseup',()=>{ S.isDragging=false; c.classList.remove('dragging'); });
+
+        // Click outside node → hide tooltip
+        c.addEventListener('click',e=>{ if(!e.target.closest('.node-circle')&&!e.target.closest('.node-checkbox')) hideTooltip(); });
+
+        // Touch drag
+        let t0=null;
+        c.addEventListener('touchstart',e=>{ if(e.touches.length===1){ t0={x:e.touches[0].clientX-S.ox,y:e.touches[0].clientY-S.oy}; } },{passive:true});
+        c.addEventListener('touchmove',e=>{ if(e.touches.length===1&&t0){ S.ox=e.touches[0].clientX-t0.x; S.oy=e.touches[0].clientY-t0.y; applyTransform(); } e.preventDefault(); },{passive:false});
+        c.addEventListener('touchend',()=>{ t0=null; });
+
+        // Wheel zoom
+        c.addEventListener('wheel',e=>{
+        e.preventDefault();
+        const factor=e.deltaY>0?0.9:1.1;
+        const newScale=Math.max(0.2,Math.min(3,S.scale*factor));
+        // Zoom toward mouse cursor
+        const rect=c.getBoundingClientRect();
+        const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+        S.ox=mx-(mx-S.ox)*(newScale/S.scale);
+        S.oy=my-(my-S.oy)*(newScale/S.scale);
+        S.scale=newScale;
+        applyTransform();
+        },{passive:false});
+        }
+
+        function applyTransform(){
+        document.getElementById('world-layer').style.transform=`translate(${S.ox}px,${S.oy}px) scale(${S.scale})`;
+        }
+
+        function focusStart(){
+        const first=S.roadmap.mainNodes[0]; if(!first) return;
+        const pos=S.positions[first.id]; if(!pos) return;
+        const w=window.innerWidth, h=window.innerHeight;
+        // Показать первый узел внизу по центру
+        S.scale=1;
+        S.ox=w/2-pos.x;
+        S.oy=h*0.72-pos.y;
+        applyTransform();
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  TABS
+        // ═══════════════════════════════════════════════════════
+        function switchTab(tab){
+        document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+        document.querySelectorAll('.bottom-btn').forEach(b=>b.classList.remove('active'));
+        const pm={map:'tab-map',chat:'tab-chat',leaderboard:'tab-leaderboard'};
+        const bm={map:'btn-map',chat:'btn-chat',leaderboard:'btn-lb'};
+        document.getElementById(pm[tab])?.classList.add('active');
+        document.getElementById(bm[tab])?.classList.add('active');
+        hideTooltip();
+        const show=S.isGenerated&&tab==='map';
+        ['legend','export-btn','progress-badge','reset-btn','rebuild-btn'].forEach(id=>{
+        const el=document.getElementById(id); if(!el) return;
+        if(show) el.classList.add('visible'); else el.classList.remove('visible');
+        });
+        if(tab==='chat') document.getElementById('chat-input').focus();
+        if(tab==='leaderboard') updateLeaderboard();
+        if(tab==='map'&&S.isGenerated){ requestAnimationFrame(()=>{ updateNodeStyles(); updateHighlight(); }); }
+        }
+        function showRoadmapUI(){
+        ['legend','export-btn','progress-badge','reset-btn','rebuild-btn'].forEach(id=>document.getElementById(id)?.classList.add('visible'));
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  PROGRESS & SCORE
+        // ═══════════════════════════════════════════════════════
+        function updateProgress(){
+        if(!S.isGenerated) return;
+        const total=S.roadmap.mainNodes.length;
+        const done=S.roadmap.mainNodes.filter(n=>S.session.completedNodes.has(n.id)).length;
+        const pct=total>0?Math.round(done/total*100):0;
+        document.getElementById('pb-pct').textContent=pct+'%';
+        document.getElementById('pb-count').textContent=`${done} / ${total}`;
+        const bar=document.getElementById('pb-bar'); bar.style.width=pct+'%';
+        const r=Math.round(255*Math.cos(pct/100*Math.PI/2));
+        const g=Math.round(255*Math.sin(pct/100*Math.PI/2));
+        const col=`rgb(${r},${g},70)`;
+        document.getElementById('pb-pct').style.color=col; bar.style.background=col;
+        }
+        function addScore(pts){ S.userScore+=pts; localStorage.setItem('prog_score',S.userScore.toString()); updateLeaderboard(); }
+
+        // ═══════════════════════════════════════════════════════
+        //  LEADERBOARD
+        // ═══════════════════════════════════════════════════════
+        function updateLeaderboard(){
+        let lb=JSON.parse(localStorage.getItem('prog_lb')||'[]');
+        const i=lb.findIndex(e=>e.username===S.username);
+        if(i>=0) lb[i].score=S.userScore; else lb.push({username:S.username,score:S.userScore});
+        lb.sort((a,b)=>b.score-a.score); lb=lb.slice(0,10);
+        localStorage.setItem('prog_lb',JSON.stringify(lb));
+        const tbody=document.getElementById('lb-tbody'); tbody.innerHTML='';
+        const avs=['🐉','🦊','🐼','🐨','🦁','🐯','🐸','🐙','🦄','🐲'];
+        lb.forEach((e,i)=>{
+        const rc=i===0?'r1':i===1?'r2':i===2?'r3':'r-';
+        const isYou=e.username===S.username;
+        const tr=document.createElement('tr');
+        if(isYou) tr.style.background='rgba(124,58,237,.1)';
+        tr.innerHTML=`<td><div class="lb-nc"><span class="lb-rank ${rc}">${i+1}</span><div class="lb-av">${isYou?'⭐':avs[i]}</div><span class="lb-name">${e.username}</span>${isYou?'<span class="lb-you">ВЫ</span>':''}</div></td><td><span class="lb-score">${e.score}</span> 🪙</td>`;
+        tbody.appendChild(tr);
+        });
+        document.getElementById('my-score-value').textContent=S.userScore;
+        const mr=lb.findIndex(e=>e.username===S.username)+1;
+        document.getElementById('my-score-rank').textContent=mr>0?`Место #${mr} из ${lb.length}`:'Пока нет в рейтинге';
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  UTILS
+        // ═══════════════════════════════════════════════════════
+        function trunc(s,l){ return s.length<=l?s:s.slice(0,l)+'…'; }
+        function showNotif(text,color){
+        const el=document.getElementById('notification');
+        el.textContent=text;
+        const dark=color==='#f0455a'||color==='#f97316';
+        el.style.background=color==='#f0455a'?'linear-gradient(135deg,#f0455a,#f97316)':color==='#f97316'?'linear-gradient(135deg,#f97316,#ffb822)':'linear-gradient(135deg,#22d17a,#7bfabc)';
+        el.style.color=dark?'#fff':'#000';
+        el.classList.add('show'); setTimeout(()=>{ el.classList.remove('show'); },2600);
+        }
+        function spawnConfetti(){
+        const cols=['#f0455a','#ffb822','#4361ee','#22d17a','#7c3aed','#00d4d8'];
+        for(let i=0;i<60;i++){
+        const p=document.createElement('div'); p.className='confetti-piece';
+        p.style.left=Math.random()*window.innerWidth+'px';
+        const s=5+Math.random()*9; p.style.width=s+'px'; p.style.height=(s*(0.4+Math.random()))+'px';
+        p.style.background=cols[Math.floor(Math.random()*cols.length)];
+        p.style.borderRadius=Math.random()>.5?'50%':'2px';
+        p.style.animation=`cfDrop ${1.8+Math.random()*2}s ease-in ${Math.random()*.4}s forwards`;
+        document.body.appendChild(p); setTimeout(()=>p.remove(),3000);
+        }
+        }
+        function exportProgress(){
+        if(!S.isGenerated) return;
+        const total=S.roadmap.mainNodes.length;
+        const done=S.roadmap.mainNodes.filter(n=>S.session.completedNodes.has(n.id)).length;
+        const a=document.createElement('a');
+        a.href=URL.createObjectURL(new Blob([JSON.stringify({date:new Date().toISOString(),track:S.roadmap.title,progress:`${done}/${total}`,score:S.userScore,completedNodes:[...S.session.completedNodes]},null,2)],{type:'application/json'}));
+        a.download=`roadmap_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        }
+        window.addEventListener('resize',()=>{
+        if(!S.isGenerated) return;
+        renderMap();
+        });
+
+        // ═══════════════════════════════════════════════════════
+        //  INIT
+        // ═══════════════════════════════════════════════════════
+        updateLeaderboard();
+        addMsg('bot',`Привет! 👋 Я <b>Прогрессор</b> — твой AI-ментор.<br><br>Сначала добавь <b>API ключ</b> — нажми ⚙️ вверху справа.<br>Бесплатный ключ: <a href="https://openrouter.ai/keys" target="_blank" style="color:#a78bfa;">openrouter.ai/keys</a><br><br>Потом напиши <b>чему хочешь научиться</b>, например:<br><i>"Хочу изучить Python с нуля"</i>`);
+    </script>
+</body>
+</html>
+HTMLEOF
