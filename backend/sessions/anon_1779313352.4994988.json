@@ -1,0 +1,29 @@
+{
+  "session_id": "anon_1779313352.4994988",
+  "state": "interview",
+  "profile": {
+    "target_topic": "",
+    "current_level": "новичок",
+    "goal": "саморазвитие",
+    "timeline": "не важно"
+  },
+  "graph": {
+    "graph_title": "",
+    "roadmap_motivation": "",
+    "nodes": [],
+    "core_path": [],
+    "branches": []
+  },
+  "chat_history": [],
+  "completed_nodes": [],
+  "current_node_id": null,
+  "current_test": null,
+  "points": 0,
+  "completed_tests": [],
+  "badges": [],
+  "streak_days": 0,
+  "last_activity_date": null,
+  "daily_quest_progress": {},
+  "created_at": 1779313352.499498,
+  "updated_at": 1779313352.4994988
+}
